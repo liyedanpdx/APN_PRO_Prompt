@@ -1,0 +1,95 @@
+{
+  "test_config": {
+    "total_samples": 100,
+    "concurrent_limit": 20,
+    "total_time": 11.109687566757202,
+    "model": "gpt-4.1-nano-2025-04-14",
+    "provider": "openai",
+    "ground_truth_samples": 50
+  },
+  "accuracy_metrics": {
+    "overall_accuracy": 0.672,
+    "total_predictions": 250,
+    "correct_predictions": 168,
+    "dimension_metrics": {
+      "Location": {
+        "correct": 30,
+        "total": 50,
+        "precision": 0.375,
+        "recall": 0.375,
+        "f1": 0.375,
+        "accuracy": 0.6
+      },
+      "Job Title": {
+        "correct": 46,
+        "total": 50,
+        "precision": 0.9534883720930233,
+        "recall": 0.9534883720930233,
+        "f1": 0.9534883720930233,
+        "accuracy": 0.92
+      },
+      "Years of Experience": {
+        "correct": 31,
+        "total": 50,
+        "precision": 0.18181818181818182,
+        "recall": 0.16666666666666666,
+        "f1": 0.17391304347826086,
+        "accuracy": 0.62
+      },
+      "Industry": {
+        "correct": 30,
+        "total": 50,
+        "precision": 0.6818181818181818,
+        "recall": 0.5357142857142857,
+        "f1": 0.6,
+        "accuracy": 0.6
+      },
+      "Skills": {
+        "correct": 31,
+        "total": 50,
+        "precision": 0.7142857142857143,
+        "recall": 0.7352941176470589,
+        "f1": 0.7246376811594202,
+        "accuracy": 0.62
+      }
+    }
+  },
+  "performance_metrics": {
+    "success_count": 100,
+    "failure_count": 0,
+    "success_rate": 100.0,
+    "average_duration": 2.002950899600983,
+    "median_duration": 1.8448749780654907,
+    "min_duration": 1.455033302307129,
+    "max_duration": 4.125247478485107,
+    "std_duration": 0.46761919373273597,
+    "requests_per_second": 9.00115321867588,
+    "successful_requests_per_second": 9.00115321867588
+  },
+  "token_usage": {
+    "total_tokens": 95674,
+    "prompt_tokens": 85474,
+    "completion_tokens": 10200,
+    "average_total_tokens": 956.74,
+    "average_prompt_tokens": 854.74,
+    "average_completion_tokens": 102.0
+  },
+  "content_analysis": {
+    "average_text_length": 59.74,
+    "dimension_frequencies": {
+      "Location": 30,
+      "Job Title": 86,
+      "Years of Experience": 24,
+      "Industry": 44,
+      "Skills": 70
+    },
+    "dimension_percentages": {
+      "Location": 30.0,
+      "Job Title": 86.0,
+      "Years of Experience": 24.0,
+      "Industry": 44.0,
+      "Skills": 70.0
+    }
+  },
+  "errors": []
+}

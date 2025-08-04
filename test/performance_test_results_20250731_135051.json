@@ -1,0 +1,45 @@
+{
+  "test_config": {
+    "total_samples": 100,
+    "concurrent_limit": 20,
+    "total_time": 15.54332685470581
+  },
+  "performance_metrics": {
+    "success_count": 100,
+    "failure_count": 0,
+    "success_rate": 100.0,
+    "average_duration": 2.4873539662361144,
+    "median_duration": 2.3523848056793213,
+    "min_duration": 1.5844049453735352,
+    "max_duration": 6.460909128189087,
+    "std_duration": 0.72837835649047,
+    "requests_per_second": 6.433629102364566,
+    "successful_requests_per_second": 6.433629102364566
+  },
+  "token_usage": {
+    "total_tokens": 95674,
+    "prompt_tokens": 85474,
+    "completion_tokens": 10200,
+    "average_total_tokens": 956.74,
+    "average_prompt_tokens": 854.74,
+    "average_completion_tokens": 102.0
+  },
+  "content_analysis": {
+    "average_text_length": 59.74,
+    "dimension_frequencies": {
+      "Location": 30,
+      "Job Title": 86,
+      "Years of Experience": 24,
+      "Industry": 43,
+      "Skills": 68
+    },
+    "dimension_percentages": {
+      "Location": 30.0,
+      "Job Title": 86.0,
+      "Years of Experience": 24.0,
+      "Industry": 43.0,
+      "Skills": 68.0
+    }
+  },
+  "errors": []
+}
