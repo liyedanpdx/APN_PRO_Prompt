@@ -1,9 +1,10 @@
 import openai
 import requests
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Generator, Callable
 import sys
 from pathlib import Path
+import time
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -102,10 +103,10 @@ class LLMClient:
         **kwargs
     ) -> Dict[str, Any]:
         """
-        统一调用Perplexity API
+        统一调用Perplexity API - 使用 OpenAI 客户端库
         
         Args:
-            model: 模型名称，如 "llama-3.1-sonar-small-128k-online", "llama-3.1-sonar-large-128k-online" 等
+            model: 模型名称，如 "sonar-pro", "llama-3.1-sonar-small-128k-online" 等
             messages: 消息列表 [{"role": "user", "content": "text"}]
             temperature: 温度参数 (0-2)
             max_tokens: 最大token数
@@ -119,37 +120,42 @@ class LLMClient:
         Returns:
             API响应字典
         """
-        url = "https://api.perplexity.ai/chat/completions"
-        
-        headers = {
-            "Authorization": f"Bearer {self.config.PERPLEXITY_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": model,
-            "messages": messages or [],
-            "temperature": temperature,
-            "top_p": top_p,
-            "top_k": top_k,
-            "stream": stream,
-            "presence_penalty": presence_penalty,
-            "frequency_penalty": frequency_penalty,
-            **kwargs
-        }
-        
-        if max_tokens:
-            payload["max_tokens"] = max_tokens
+        # 使用 OpenAI 客户端库，但指向 Perplexity 的端点
+        client = openai.OpenAI(
+            api_key=self.config.PERPLEXITY_API_KEY,
+            base_url="https://api.perplexity.ai"
+        )
         
         try:
-            response = requests.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            
-            data = response.json()
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages or [],
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                stream=stream,
+                **kwargs
+            )
             
             return {
                 "success": True,
-                "data": data,
+                "data": {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": response.choices[0].message.role,
+                                "content": response.choices[0].message.content
+                            },
+                            "finish_reason": response.choices[0].finish_reason
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens
+                    },
+                    "model": response.model
+                },
                 "provider": "perplexity"
             }
             
@@ -440,6 +446,121 @@ class LLMClient:
                 return choices[0].get("message", {}).get("content")
         
         return None
+    
+    def stream_llm(
+        self,
+        provider: str,
+        model: str,
+        messages: List[Dict[str, str]],
+        **kwargs
+    ):
+        """
+        流式调用LLM接口 - 简单直接返回流对象
+        
+        Args:
+            provider: 提供商 ("openai", "gemini", "ali", "groq")
+            model: 模型名称
+            messages: 消息列表
+            **kwargs: 其他参数
+            
+        Returns:
+            流对象，可以直接迭代使用
+        """
+        kwargs['stream'] = True
+        
+        if provider.lower() == "openai":
+            return self._stream_openai(model, messages, **kwargs)
+        elif provider.lower() == "gemini":
+            return self._stream_gemini(model, messages, **kwargs)
+        elif provider.lower() == "ali":
+            return self._stream_ali(model, messages, **kwargs)
+        elif provider.lower() == "groq":
+            return self._stream_groq(model, messages, **kwargs)
+        elif provider.lower() == "perplexity":
+            return self._stream_perplexity(model, messages, **kwargs)
+        else:
+            raise ValueError(f"Unsupported provider for streaming: {provider}")
+    
+    def _stream_openai(self, model: str, messages: List[Dict[str, str]], **kwargs):
+        """OpenAI 流式生成 - 使用原生 OpenAI API"""
+        client = openai.OpenAI(api_key=self.config.OPENAI_API_KEY)
+        return client.chat.completions.create(
+            model=model,
+            messages=messages or [],
+            **kwargs
+        )
+    
+    def _stream_gemini(self, model: str, messages: List[Dict[str, str]], **kwargs):
+        """Gemini 流式生成 - 使用 OpenAI 客户端库统一接口"""
+        # 使用 OpenAI 客户端库，但指向 Gemini 的端点
+        client = openai.OpenAI(
+            api_key=self.config.GEMINI_API_KEY,
+            base_url=self.config.GEMINI_API_BASE
+        )
+        
+        # 过滤掉不支持的参数
+        supported_params = {}
+        for key, value in kwargs.items():
+            if key not in ['frequency_penalty', 'presence_penalty']:
+                supported_params[key] = value
+        
+        return client.chat.completions.create(
+            model=model,
+            messages=messages or [],
+            **supported_params
+        )
+    
+    def _stream_ali(self, model: str, messages: List[Dict[str, str]], **kwargs):
+        """阿里云 流式生成 - 返回requests流对象"""
+        url = f"{self.config.ALI_API_BASE}/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {self.config.ALI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": messages or [],
+            **kwargs
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, stream=True)
+        response.raise_for_status()
+        return response
+    
+    def _stream_groq(self, model: str, messages: List[Dict[str, str]], **kwargs):
+        """Groq 流式生成 - 返回requests流对象"""
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {self.config.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": messages or [],
+            **kwargs
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, stream=True)
+        response.raise_for_status()
+        return response
+    
+    def _stream_perplexity(self, model: str, messages: List[Dict[str, str]], **kwargs):
+        """Perplexity 流式生成 - 使用 OpenAI 客户端库统一接口"""
+        # 使用 OpenAI 客户端库，但指向 Perplexity 的端点
+        client = openai.OpenAI(
+            api_key=self.config.PERPLEXITY_API_KEY,
+            base_url="https://api.perplexity.ai"
+        )
+        
+        return client.chat.completions.create(
+            model=model,
+            messages=messages or [],
+            **kwargs
+        )
 
 
 # 预设模型配置
@@ -522,7 +643,7 @@ if __name__ == "__main__":
     print("\n2️⃣ 测试 Perplexity...")
     try:
         perplexity_response = llm.call_perplexity(
-            model="llama-3.1-sonar-small-128k-online",
+            model="sonar",
             messages=test_messages,
             temperature=0.1,
             max_tokens=10
@@ -588,7 +709,8 @@ if __name__ == "__main__":
             model="gemini-2.5-flash-lite",
             messages=test_messages,
             temperature=0.1,
-            max_tokens=10
+            max_tokens=10,
+            stream=True
         )
         
         if gemini_response["success"]:
@@ -632,5 +754,182 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ {provider} 统一接口异常: {e}")
     
+    # 7. 流式生成测试
+    print("\n7️⃣ 测试流式生成...")
+    test_stream_providers = [
+        ("openai", "gpt-4-1106-preview"),
+        ("gemini", "gemini-2.5-flash-lite"),
+        ("groq", "llama-3.1-70b-versatile"),
+        ("ali", "deepseek-v3")
+    ]
+    
+    stream_test_messages = [
+        {"role": "user", "content": "请用50个字介绍一下人工智能的发展历史。"}
+    ]
+    
+    # 测试 OpenAI 流式生成（参考 stream_api_test.py 的简单方式）
+    print(f"\n🌊 测试流式生成: OpenAI")
+    try:
+        print(f"📝 流式响应: ", end="", flush=True)
+        start_time = time.time()
+        
+        # 获取流对象
+        stream = llm.stream_llm(
+            provider="openai",
+            model="gpt-4-1106-preview",
+            messages=stream_test_messages,
+            temperature=0.3,
+            max_tokens=100
+        )
+        
+        # 像 stream_api_test.py 一样简单处理流
+        chunk_count = 0
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                print(content, end='', flush=True)
+                chunk_count += 1
+        
+        end_time = time.time()
+        print()  # 换行
+        print(f"✅ OpenAI 流式生成成功")
+        print(f"📊 统计: {chunk_count} 个块")
+        print(f"⏱️ 耗时: {end_time - start_time:.2f}s")
+        
+    except Exception as e:
+        print(f"❌ OpenAI 流式生成异常: {e}")
+    
+    # 测试 Gemini 流式生成（现在也使用 OpenAI 客户端库统一接口）
+    print(f"\n🌊 测试流式生成: Gemini")
+    try:
+        print(f"📝 流式响应: ", end="", flush=True)
+        start_time = time.time()
+        
+        # 获取流对象 - 现在 Gemini 也返回和 OpenAI 相同的流对象
+        stream = llm.stream_llm(
+            provider="gemini",
+            model="gemini-2.5-flash-lite",
+            messages=stream_test_messages,
+            temperature=0.3,
+            max_tokens=100
+        )
+        
+        # 像 OpenAI 一样处理流
+        chunk_count = 0
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                print(content, end='', flush=True)
+                chunk_count += 1
+        
+        end_time = time.time()
+        print()  # 换行
+        print(f"✅ Gemini 流式生成成功")
+        print(f"📊 统计: {chunk_count} 个块")
+        print(f"⏱️ 耗时: {end_time - start_time:.2f}s")
+        
+    except Exception as e:
+        print(f"❌ Gemini 流式生成异常: {e}")
+    
+    # 测试 Perplexity 流式生成（也使用 OpenAI 客户端库统一接口）
+    print(f"\n🌊 测试流式生成: Perplexity")
+    try:
+        print(f"📝 流式响应: ", end="", flush=True)
+        start_time = time.time()
+        
+        # 获取流对象 - 现在 Perplexity 也返回和 OpenAI 相同的流对象
+        stream = llm.stream_llm(
+            provider="perplexity",
+            model="sonar-pro",#"sonar-reasoning",
+            messages=[{"role": "user", "content": "Compare renewable energy technologies"}],
+            temperature=0.3
+        )
+        
+        # 像 OpenAI 一样处理流，但包含 Perplexity 的额外信息处理
+        chunk_count = 0
+        content = ""
+        search_results = []
+        usage_info = None
+        
+        for chunk in stream:
+            # Content arrives progressively
+            if chunk.choices[0].delta.content is not None:
+                content_chunk = chunk.choices[0].delta.content
+                content += content_chunk
+                print(content_chunk, end="", flush=True)
+                chunk_count += 1
+            
+            # Metadata arrives in final chunks (Perplexity specific)
+            if hasattr(chunk, 'search_results') and chunk.search_results:
+                search_results = chunk.search_results
+            
+            if hasattr(chunk, 'usage') and chunk.usage:
+                usage_info = chunk.usage
+            
+            # Handle completion
+            if chunk.choices[0].finish_reason is not None:
+                print(f"\n\nFinish reason: {chunk.choices[0].finish_reason}")
+                if search_results:
+                    print(f"Search Results: {len(search_results)} results found")
+                if usage_info:
+                    print(f"Usage: {usage_info}")
+        
+        end_time = time.time()
+        print(f"✅ Perplexity 流式生成成功")
+        print(f"📊 统计: {chunk_count} 个块")
+        print(f"⏱️ 耗时: {end_time - start_time:.2f}s")
+        
+    except Exception as e:
+        print(f"❌ Perplexity 流式生成异常: {e}")
+    
+    # 测试其他提供商的流式处理（仍使用 requests 流）
+    other_providers = [("groq", "llama-3.1-70b-versatile")]
+    
+    for provider, model in other_providers:
+        print(f"\n🌊 测试流式生成: {provider}")
+        try:
+            print(f"📝 流式响应: ", end="", flush=True)
+            start_time = time.time()
+            
+            # 获取流对象
+            response = llm.stream_llm(
+                provider=provider,
+                model=model,
+                messages=stream_test_messages,
+                temperature=0.3,
+                max_tokens=100
+            )
+            
+            # 处理 requests 流
+            chunk_count = 0
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str.strip() == '[DONE]':
+                            break
+                        
+                        try:
+                            data = json.loads(data_str)
+                            if 'choices' in data and data['choices']:
+                                delta = data['choices'][0].get('delta', {})
+                                content = delta.get('content', '')
+                                if content:
+                                    print(content, end='', flush=True)
+                                    chunk_count += 1
+                        except json.JSONDecodeError:
+                            continue
+            
+            end_time = time.time()
+            print()  # 换行
+            print(f"✅ {provider} 流式生成成功")
+            print(f"📊 统计: {chunk_count} 个块")
+            print(f"⏱️ 耗时: {end_time - start_time:.2f}s")
+            
+        except Exception as e:
+            print(f"❌ {provider} 流式生成异常: {e}")
+    
     print(f"\n{'=' * 60}")
     print("🎯 测试完成！请检查上述结果以确认各提供商的工作状态。")
+    print("🌊 流式生成功能已添加，支持实时接收和处理文本流。")
