@@ -1,9 +1,9 @@
 import json
 import os
-import sys
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import re
+import sys
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -57,7 +57,7 @@ class JobAnalyzer:
         Returns:
             prompt模板字符串
         """
-        prompt_file = project_root / "prompt" / "job_analysis_prompt.md"
+        prompt_file = project_root / "prompt" / "target_company_generator_prompt.md"
         
         try:
             with open(prompt_file, 'r', encoding='utf-8') as f:
@@ -112,6 +112,7 @@ Detect the input language and respond in the same language (Chinese or English).
         jd_content: str, 
         company_name: str, 
         position_title: str,
+        output_language: str = "auto",
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -121,6 +122,7 @@ Detect the input language and respond in the same language (Chinese or English).
             jd_content: 职位描述内容
             company_name: 公司名称
             position_title: 岗位标题
+            output_language: 输出语言 ("auto", "chinese", "english")
             **kwargs: 传递给LLM的额外参数
             
         Returns:
@@ -148,9 +150,19 @@ Detect the input language and respond in the same language (Chinese or English).
                 "result": None
             }
         
-        # 检测语言
-        combined_text = f"{jd_content} {company_name} {position_title}"
-        detected_language = self._detect_language(combined_text)
+        # 确定输出语言
+        if output_language == "auto":
+            combined_text = f"{jd_content} {company_name} {position_title}"
+            detected_language = self._detect_language(combined_text)
+        else:
+            detected_language = output_language.lower()
+        
+        # 根据语言设置添加语言指定指令
+        language_instruction = ""
+        if detected_language == "chinese":
+            language_instruction = "\n\nIMPORTANT: Please respond in Chinese (中文)."
+        elif detected_language == "english":
+            language_instruction = "\n\nIMPORTANT: Please respond in English."
         
         # 构建完整的prompt
         full_prompt = f"""{self.prompt_template}
@@ -166,7 +178,7 @@ Detect the input language and respond in the same language (Chinese or English).
 **Position Title (岗位标题):**
 {position_title.strip()}
 
-Please analyze this job position following the framework provided above."""
+Please analyze this job position following the framework provided above.{language_instruction}"""
         
         messages = [
             {
@@ -335,62 +347,93 @@ Please analyze this job position following the framework provided above."""
 
 
 if __name__ == "__main__":
-    # 检查命令行参数
-    if len(sys.argv) < 4:
-        print("Usage: python job_analyzer.py \"JD_CONTENT\" \"COMPANY_NAME\" \"POSITION_TITLE\"")
-        print("\nExample:")
-        print('python job_analyzer.py "We are looking for a senior product manager..." "Tencent" "Senior Product Manager"')
-        sys.exit(1)
+    # 中文测试案例
+    jd_content_cn = """我们正在招聘一名高级产品经理，负责腾讯会议产品的规划和优化。
     
-    # 获取输入参数
-    jd_content = sys.argv[1]
-    company_name = sys.argv[2] 
-    position_title = sys.argv[3]
+    职责包括：
+    - 负责产品功能规划，与技术团队协作推进产品迭代
+    - 分析用户需求和市场趋势，制定产品策略
+    - 协调跨部门资源，推动产品目标达成
+    - 监控产品数据，持续优化用户体验
+    
+    要求：
+    - 3-5年产品经理经验，有B端或SaaS产品经验优先
+    - 熟悉敏捷开发流程，有技术背景者优先
+    - 优秀的数据分析和逻辑思维能力
+    - 良好的沟通协调能力和项目管理能力
+    """
+    company_name_cn = "腾讯"
+    position_title_cn = "高级产品经理-腾讯会议产品"
+    
+    # 英文测试案例
+    jd_content_en = """We are seeking a Senior Software Engineer to join our engineering team at ByteDance.
+    
+    Responsibilities:
+    - Design and develop scalable backend systems for our social media platform
+    - Collaborate with cross-functional teams to deliver high-quality software solutions
+    - Optimize system performance and ensure high availability
+    - Mentor junior developers and contribute to technical documentation
+    
+    Requirements:
+    - 5+ years of experience in backend development
+    - Strong proficiency in Java, Python, or Go
+    - Experience with distributed systems and microservices architecture
+    - Excellent problem-solving skills and attention to detail
+    """
+    company_name_en = "ByteDance"
+    position_title_en = "Senior Software Engineer"
     
     # 创建分析器实例 - 使用Gemini 2.5
     analyzer = JobAnalyzer(
         model="gemini-2.5-flash-lite",
         provider="gemini",
         temperature=0.3,
-        max_tokens=4000
+        max_tokens=10000
     )
     
-    print(f"🏢 Company: {company_name}")
-    print(f"📋 Position: {position_title}")
-    print(f"📄 JD Content: {jd_content[:100]}{'...' if len(jd_content) > 100 else ''}")
-    print("-" * 80)
+    # 测试中文案例
+    print("=" * 80)
+    print("🇨🇳 中文测试案例")
+    print("=" * 80)
+    print(f"🏢 Company: {company_name_cn}")
+    print(f"📋 Position: {position_title_cn}")
     print("🔄 Analyzing job position...")
     
-    # 分析岗位
-    result = analyzer.analyze_job(jd_content, company_name, position_title)
+    result_cn = analyzer.analyze_job(jd_content_cn, company_name_cn, position_title_cn, output_language="chinese")
     
-    # 输出结果
-    if result["success"]:
+    if result_cn["success"]:
         print("✅ Analysis successful!")
-        print("\n" + "=" * 80)
-        print("ANALYSIS RESULT:")
-        print("=" * 80)
-        print(result["result"]["analysis"])
-        
-        # 保存结果到文件
-        output_file = analyzer.save_analysis_result(result)
-        if output_file:
-            print(f"\n💾 Result saved to: {output_file}")
-        
-        # 显示使用统计
-        if "usage" in result:
-            usage = result["usage"]
-            print(f"\n📊 Usage Statistics:")
-            print(f"  Prompt tokens: {usage.get('prompt_tokens', 'N/A')}")
-            print(f"  Completion tokens: {usage.get('completion_tokens', 'N/A')}")
-            print(f"  Total tokens: {usage.get('total_tokens', 'N/A')}")
-        
-        print(f"\n🤖 Model: {result.get('model_used', 'N/A')}")
-        print(f"🔧 Provider: {result.get('provider', 'N/A')}")
-        print(f"🌐 Language: {result['result']['detected_language']}")
-        
+        print(result_cn["result"]["analysis"])
     else:
         print("❌ Analysis failed!")
-        print(f"Error: {result['error']}")
-        if "raw_response" in result:
-            print(f"Raw response: {result['raw_response']}")
+        print(f"Error: {result_cn['error']}")
+    
+    print("\n" + "=" * 80)
+    print("🇺🇸 English Test Case")
+    print("=" * 80)
+    print(f"🏢 Company: {company_name_en}")
+    print(f"📋 Position: {position_title_en}")
+    print("🔄 Analyzing job position...")
+    
+    # 测试英文案例
+    analyzer = JobAnalyzer(
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        temperature=0.3,
+        max_tokens=10000
+    )
+    
+    result_en = analyzer.analyze_job(jd_content_en, company_name_en, position_title_en, output_language="english")
+    
+    if result_en["success"]:
+        print("✅ Analysis successful!")
+        print(result_en["result"]["analysis"])
+    else:
+        print("❌ Analysis failed!")
+        print(f"Error: {result_en['error']}")
+    
+    print("\n" + "=" * 80)
+    print("📊 Test Summary")
+    print("=" * 80)
+    print(f"中文测试: {'✅' if result_cn['success'] else '❌'}")
+    print(f"英文测试: {'✅' if result_en['success'] else '❌'}")
