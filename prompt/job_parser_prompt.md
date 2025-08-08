@@ -1,42 +1,42 @@
-# Candidate Description Parser Prompt
+# Job Description Parser Prompt
 
 ## Task Description
-Parse user's description of ideal candidates and convert it into structured JSON format with standardized English terms.
+Parse job descriptions (JD) and convert them into structured JSON format with standardized English terms.
 
 ## Output Format
 Return ONLY a valid JSON object with the following structure:
 
 ```json
 {
-  "jobTitles": ["engineer", "developer"],
+  "jobTitles": ["Software Engineer", "Backend Developer"],
   "requiredSkills": ["Javascript", "Python"],
   "preferredSkills": ["AWS", "Docker"],
   "industry": ["Technology", "Software"],
   "Location": ["San Francisco, CA, USA", "New York, NY, USA"],
   "Experience": {"gte": 2, "lte": 5},
-  "Keywords": ["startup experience", "remote work"]
+  "Keywords": ["startup environment", "remote work"]
 }
 ```
 
 ## Field Specifications
 
 ### jobTitles (array of strings)
-- Extract job titles/positions mentioned
+- Extract job titles/positions mentioned in the JD
 - Convert to standard English job titles
 - Examples: "Software Engineer", "Product Manager", "Data Scientist", "Marketing Manager"
 
 ### requiredSkills (array of strings)
-- Skills that are explicitly required or must-have
+- Skills that are explicitly required or must-have in the job description
 - Convert to standard English technology/skill names
 - Examples: "JavaScript", "Python", "SQL", "Project Management", "Adobe Photoshop"
 
 ### preferredSkills (array of strings)
-- Skills that are nice-to-have, preferred, or bonus
+- Skills that are nice-to-have, preferred, or bonus qualifications
 - Convert to standard English technology/skill names
 - Same format as requiredSkills but for optional qualifications
 
 ### industry (array of strings)
-Select ONLY from the following predefined industry list. If the description doesn't clearly match any industry, use empty array [].
+Select ONLY from the following predefined industry list. If the job description doesn't clearly match any industry, use empty array [].
 
 **Available Industries:**
 - Abrasives and Nonmetallic Minerals Manufacturing
@@ -496,12 +496,13 @@ Select ONLY from the following predefined industry list. If the description does
   - "2-5 years" → {"gte": 2, "lte": 5}
   - "At least 3 years" → {"gte": 3, "lte": null}
   - "Less than 2 years" → {"gte": null, "lte": 2}
-  - "Fresh graduate" → {"gte": 0, "lte": 1}
+  - "Entry level" → {"gte": 0, "lte": 2}
+  - "Senior level" → {"gte": 5, "lte": null}
 
 ### Keywords (array of strings)
-- Important terms that don't fit in other categories
+- Important terms from the job description that don't fit in other categories
 - Convert to English if needed
-- Examples: "startup experience", "remote work", "team leadership", "agile methodology", "client-facing", "international experience"
+- Examples: "startup environment", "remote work", "team leadership", "agile methodology", "client-facing", "international team"
 
 ## Language Handling
 - **Input**: Accept any language (Chinese, English, etc.)
@@ -515,61 +516,77 @@ Select ONLY from the following predefined industry list. If the description does
 
 ## Parsing Rules
 
-1. **Be Conservative**: Only include information that is clearly mentioned
+1. **Be Conservative**: Only include information that is clearly mentioned in the JD
 2. **Standardize Terms**: Use common English industry terms
-3. **No Assumptions**: Don't add information not present in the description
+3. **No Assumptions**: Don't add information not present in the job description
 4. **Skill Classification**: 
-   - Required = "must have", "required", "essential", "需要", "必须"
-   - Preferred = "nice to have", "preferred", "bonus", "加分", "优先"
+   - Required = "must have", "required", "essential", "需要", "必须", "责任要求"
+   - Preferred = "nice to have", "preferred", "bonus", "加分", "优先", "加分项"
 5. **Empty Arrays**: Use [] if no relevant information found for that field
 
 ## Examples
 
 ### Example 1 (Chinese Input):
-**Input:** "我们需要一个有3-5年经验的前端工程师，必须会React和TypeScript，最好懂AWS，在北京或上海工作，互联网行业背景"
+**Input:** "我们正在招聘一名高级前端工程师，要求3-5年工作经验。必须熟练掌握React、Vue.js和TypeScript。如果有Node.js和AWS经验会优先考虑。工作地点在上海或北京，互联网公司背景。我们是一个快节奏的创业团队。"
 
 **Output:**
 ```json
 {
-  "jobTitles": ["Frontend Engineer"],
-  "requiredSkills": ["React", "TypeScript"],
-  "preferredSkills": ["AWS"],
+  "jobTitles": ["Senior Frontend Engineer"],
+  "requiredSkills": ["React", "Vue.js", "TypeScript"],
+  "preferredSkills": ["Node.js", "AWS"],
   "industry": ["Technology", "Software"],
-  "Location": ["Beijing, China", "Shanghai, China"],
+  "Location": ["Shanghai, China", "Beijing, China"],
   "Experience": {"gte": 3, "lte": 5},
-  "Keywords": []
+  "Keywords": ["startup team", "fast-paced"]
 }
 ```
 
 ### Example 2 (English Input):
-**Input:** "Looking for a senior data scientist with at least 5 years experience. Must have Python, SQL, and machine learning expertise. Experience with cloud platforms like AWS or GCP is a plus. Open to remote work or San Francisco bay area. Fintech background preferred."
+**Input:** "We are looking for a Senior Data Scientist to join our fintech team. The ideal candidate should have at least 5 years of experience in data science and machine learning. Requirements: Python, SQL, machine learning frameworks (TensorFlow or PyTorch). Nice to have: experience with cloud platforms like AWS or GCP, knowledge of financial markets. This is a remote-friendly position based in San Francisco bay area. We offer competitive salary and equity."
 
 **Output:**
 ```json
 {
   "jobTitles": ["Senior Data Scientist"],
-  "requiredSkills": ["Python", "SQL", "Machine Learning"],
-  "preferredSkills": ["AWS", "GCP"],
+  "requiredSkills": ["Python", "SQL", "Machine Learning", "TensorFlow", "PyTorch"],
+  "preferredSkills": ["AWS", "GCP", "Financial Markets"],
   "industry": ["Fintech"],
   "Location": ["San Francisco, CA, USA", "Remote"],
   "Experience": {"gte": 5, "lte": null},
-  "Keywords": ["cloud platforms"]
+  "Keywords": ["competitive salary", "equity"]
 }
 ```
 
 ### Example 3 (Mixed Requirements):
-**Input:** "需要产品经理，2年以上经验，会用Figma和Axure，有电商经验最好，可以远程工作"
+**Input:** "岗位：产品经理\n职责：负责产品规划和用户体验设计\n要求：\n- 2年以上产品经理经验\n- 熟练使用Figma、Axure等工具\n- 有电商或金融行业经验者优先\n- 可接受远程办公\n- 良好的英语沟通能力"
 
 **Output:**
 ```json
 {
   "jobTitles": ["Product Manager"],
-  "requiredSkills": ["Figma", "Axure"],
+  "requiredSkills": ["Product Planning", "UX Design", "Figma", "Axure", "English Communication"],
   "preferredSkills": [],
-  "industry": ["E-commerce"],
+  "industry": ["E-commerce", "Financial Services"],
   "Location": ["Remote"],
   "Experience": {"gte": 2, "lte": null},
   "Keywords": []
+}
+```
+
+### Example 4 (Complex JD):
+**Input:** "Backend Software Engineer - Full Stack Team\n\nWe're seeking an experienced backend engineer to build scalable microservices for our e-commerce platform. \n\nRequired:\n- 3+ years backend development experience\n- Strong in Java, Spring Boot, and REST APIs\n- Experience with MySQL and Redis\n- Familiarity with Docker and Kubernetes\n\nPreferred:\n- AWS/GCP cloud experience\n- Message queues (RabbitMQ, Kafka)\n- CI/CD pipeline experience\n\nLocation: New York office or remote within US\nCompany: High-growth e-commerce startup"
+
+**Output:**
+```json
+{
+  "jobTitles": ["Backend Software Engineer"],
+  "requiredSkills": ["Java", "Spring Boot", "REST API", "MySQL", "Redis", "Docker", "Kubernetes"],
+  "preferredSkills": ["AWS", "GCP", "RabbitMQ", "Kafka", "CI/CD"],
+  "industry": ["E-commerce", "Software"],
+  "Location": ["New York, NY, USA", "Remote"],
+  "Experience": {"gte": 3, "lte": null},
+  "Keywords": ["microservices", "scalable", "high-growth startup"]
 }
 ```
 
@@ -580,3 +597,5 @@ Select ONLY from the following predefined industry list. If the description does
 4. All text content must be in English
 5. Industry values must exactly match the predefined list
 6. Location format must be consistent: "City, State/Province, Country"
+7. Focus on extracting information that is explicitly stated in the job description
+8. Don't infer or assume information that is not clearly mentioned
